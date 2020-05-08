@@ -22,13 +22,7 @@ namespace fioio {
 
     private:
         fiorequest_contexts_table fiorequestContextsTable;
-        fiorequest2_contexts_table fiorequestContextsTable2; // Temp
-
         recordobt_table recordObtTable;
-        recobt2_table recordObtTable2; // Temp
-
-        eosiosystem::producers_table producers; // Temp
-
         fiorequest_status_table fiorequestStatusTable;
         fionames_table fionames;
         domains_table domains;
@@ -46,100 +40,10 @@ namespace fioio {
                   domains(AddressContract, AddressContract.value),
                   fiofees(FeeContract, FeeContract.value),
                   clientkeys(AddressContract, AddressContract.value),
-                  producers(SYSTEMACCOUNT, SYSTEMACCOUNT.value),
                   tpids(AddressContract, AddressContract.value),
-                  recordObtTable(_self,_self.value),
-                  fiorequestContextsTable2(_self, _self.value), //temp
-                  recordObtTable2(_self, _self.value) { //temp
+                  recordObtTable(_self,_self.value) {
             configs_singleton configsSingleton(FeeContract, FeeContract.value);
             appConfig = configsSingleton.get_or_default(config());
-        }
-
-        //TEMP MIGRATION ACTIONS
-        // @abi action
-        [[eosio::action]]
-        void migobttxt( const uint16_t amount, const string &actor ){
-            name executor = name("fio.reqobt");
-            name aactor = name(actor);
-            require_auth(aactor);
-
-            auto prodbyowner = producers.get_index<"byowner"_n>();
-            auto proditer = prodbyowner.find(aactor.value);
-
-            fio_400_assert(proditer != prodbyowner.end(), "actor", actor,
-                           "Actor not active producer", ErrorNoFioAddressProducer);
-
-            uint16_t count = 0;
-            auto frt = recordObtTable2.begin();
-
-            while(count <= amount && frt != recordObtTable2.end() ) {
-                bool wasSuccessful = false;
-                for (frt = recordObtTable2.begin(); frt != recordObtTable2.end(); ++frt) {
-                    recordObtTable.emplace(executor, [&](struct recordobt_info &frc) {
-                        frc.id = frt->id;
-                        frc.payer_fio_addr_hex = frt->payer_fio_addr_hex;
-                        frc.payee_fio_addr_hex = frt->payee_fio_addr_hex;
-                        frc.content = frt->content;
-                        frc.time_stamp = frt->time_stamp;
-                        frc.payer_fio_addr = frt->payer_fio_addr;
-                        frc.payee_fio_addr = frt->payee_fio_addr;
-                        frc.payee_key = frt->payee_key;
-                        frc.payer_key = frt->payer_key;
-                        frc.payer_key_hex = frt->payee_key_hex;
-                        frc.payee_key_hex = frt->payee_key_hex;
-
-                        wasSuccessful = true;
-                    });
-                    if(wasSuccessful){ break; }
-                }
-                if(wasSuccessful && frt != recordObtTable2.end()){
-                    recordObtTable2.erase(frt); //  Wish deleting the iterator in the forloop was possible.
-                    count++;
-                }
-            }
-        }
-
-        // @abi action
-        [[eosio::action]]
-        void migreqtxt( const uint16_t amount, const string &actor ){
-            name executor = name("fio.reqobt");
-            name aactor = name(actor);
-            require_auth(aactor);
-
-            auto prodbyowner = producers.get_index<"byowner"_n>();
-            auto proditer = prodbyowner.find(aactor.value);
-
-            fio_400_assert(proditer != prodbyowner.end(), "actor", actor,
-                           "Actor not active producer", ErrorNoFioAddressProducer);
-
-            uint16_t count = 0;
-            auto frt = fiorequestContextsTable2.begin();
-
-            while(count <= amount && frt != fiorequestContextsTable2.end() ) {
-                bool wasSuccessful = false;
-                for (frt = fiorequestContextsTable2.begin(); frt != fiorequestContextsTable2.end(); ++frt) {
-                    fiorequestContextsTable.emplace(executor, [&](struct fioreqctxt &frc) {
-                        frc.fio_request_id = frt->fio_request_id;
-                        frc.payer_fio_addr_hex = frt->payer_fio_addr_hex;
-                        frc.payee_fio_addr_hex = frt->payee_fio_addr_hex;
-                        frc.content = frt->content;
-                        frc.time_stamp = frt->time_stamp;
-                        frc.payer_fio_addr = frt->payer_fio_addr;
-                        frc.payee_fio_addr = frt->payee_fio_addr;
-                        frc.payee_key = frt->payee_key;
-                        frc.payer_key = frt->payer_key;
-                        frc.payer_key_hex = frt->payer_key_hex;
-                        frc.payee_key_hex = frt->payee_key_hex;
-
-                        wasSuccessful = true;
-                    });
-                    if(wasSuccessful){ break; }
-                }
-                if(wasSuccessful && frt != fiorequestContextsTable2.end()){
-                    fiorequestContextsTable2.erase(frt); //  Wish deleting the iterator in the forloop was possible.
-                    count++;
-                }
-            }
         }
 
          /*******
@@ -165,7 +69,6 @@ namespace fioio {
                 const string &actor,
                 const string &tpid) {
 
-            check(false, "Table migration in progress. All requests and OBT actions paused.");
             name aactor = name(actor.c_str());
             require_auth(aactor);
             fio_400_assert(validateTPIDFormat(tpid), "tpid", tpid,
@@ -359,7 +262,6 @@ namespace fioio {
                 const string &actor,
                 const string &tpid) {
 
-            check(false, "Table migration in progress. All requests and OBT actions paused.");
             const name aActor = name(actor.c_str());
             require_auth(aActor);
             fio_400_assert(validateTPIDFormat(tpid), "tpid", tpid,
@@ -530,7 +432,6 @@ namespace fioio {
                 const string &actor,
                 const string &tpid) {
 
-            check(false, "Table migration in progress. All requests and OBT actions paused.");
             const name aactor = name(actor.c_str());
             require_auth(aactor);
             fio_400_assert(validateTPIDFormat(tpid), "tpid", tpid,
@@ -669,7 +570,6 @@ namespace fioio {
             const string &actor,
             const string &tpid) {
 
-        check(false, "Table migration in progress. All requests and OBT actions paused.");
         const name aactor = name(actor.c_str());
         require_auth(aactor);
         fio_400_assert(validateTPIDFormat(tpid), "tpid", tpid,
@@ -798,5 +698,5 @@ namespace fioio {
     }
 };
 
-    EOSIO_DISPATCH(FioRequestObt, (migobttxt)(migreqtxt)(recordobt)(newfundsreq)(rejectfndreq)(cancelfndreq))
+    EOSIO_DISPATCH(FioRequestObt, (recordobt)(newfundsreq)(rejectfndreq)(cancelfndreq))
 }
