@@ -1,0 +1,290 @@
+#!/usr/bin/env node
+
+
+
+// Import the function we defined to transfer our balance
+
+const transferAion = require('./transferAion');
+
+
+
+// Define all of our parameters.
+
+// ** Make sure to replace YOUR_API_KEY and set either a privateKey or keystore file **
+
+const web3Endpoint = 'https://api.nodesmith.io/v1/aion/testnet/jsonrpc?apiKey=6424fde223384f34aeb29691e0881170';
+
+// const web3Endpoint = 'https://api.nodesmith.io/v1/aion/testnet/jsonrpc?apiKey=<YOUR_API_KEY>';
+
+const privateKey = undefined;
+
+const keystoreFilePath = '/Users/sdesmond/aion_ui/testnet_keystore';
+
+const keystoreFilePassword = 'password';
+
+const toAddress = '0xa0c0f504ab8aff4dd4a45d824795904fde2513ed9fc708b54a91bd89c2aceb2e';
+
+const amount = 3;
+
+
+
+// call the transfer function
+
+transferAion(web3Endpoint, privateKey, keystoreFilePath, keystoreFilePassword, toAddress, amount);
+Raw 
+ package.json 
+
+{
+
+  "name": "sending_transaction_gist",
+
+  "version": "1.0.0",
+
+  "description": "Simple sample code for sending a transaction to Aion with nodesmith",
+
+  "main": "index.js",
+
+  "author": "samm@nodesmith.io",
+
+  "license": "MIT",
+
+  "dependencies": {
+
+    "lerna": "^3.4.3",
+
+    "aion-keystore": "0.0.2",
+
+    "aion-web3": "git://github.com/aionnetwork/aion_web3.git#v1.0"
+
+  }
+
+}
+Raw 
+ transferAion.js 
+
+/**
+ * Creates a new aion-web3 1.0 instance pointing at the specified JSON RPC endpoint.
+ * @param {string} nodesmithEndpoint The endpoint where we will be sending our JSON RPC requests.
+ * @returns A new web3 instance.
+ */
+
+const getWeb3Instance = (nodesmithEndpoint) => {
+
+  // Import the aion-web3 module
+
+  const Web3 = require('aion-web3');
+
+
+
+  // Create a web3 instance using the appropriate nodesmith endpoint
+
+  const web3 = new Web3(new Web3.providers.HttpProvider(nodesmithEndpoint));
+
+
+
+  return web3;
+
+}
+
+
+
+/**
+ * Parses out a private key from either the raw private key (retrieved by the ./aion.sh -a export command) or
+ * from a password protected keystore file which was generated from the Aion Desktop Wallet app.
+ * @param {string} accountPrivateKey The raw private key string for the account.
+ * @param {string} keystoreFilePath Optional file path to the keystore file.
+ * @param {string} keystoreFilePassword If the keystoreFilePath is specified, this is the password to unlock it.
+ * @returns The private key string for the account, or throws an exception if the processing fails.
+ */
+
+const getPrivateKey = (accountPrivateKey, keystoreFilePath, keystoreFilePassword) => {
+
+
+
+  // Check if we have a keystore file and its password
+
+  if (keystoreFilePath && keystoreFilePassword) {
+
+
+
+    // Use the fs module to read the keystore file
+
+    const fs = require('fs');
+
+    const keystoreFile = fs.readFileSync(keystoreFilePath);
+
+
+
+    // Import the aion keystore module to process the keystore file
+
+    const AionKeystore = require('aion-keystore');
+
+    const aionKeystore = new AionKeystore();
+
+
+
+    // Unlock the account and use it to get the private key
+
+    const unlockedAccount = aionKeystore.decryptFromRlp(keystoreFile, keystoreFilePassword);
+
+    return unlockedAccount.privateKey;
+
+  } else if (accountPrivateKey) {
+
+
+
+    // We already have a private key, just return it
+
+    return accountPrivateKey;
+
+  } else {
+
+
+
+    // Missing both keystore file and private key, throw an error.
+
+    throw new Error(`Missing keystore file & password or private key`);
+
+  }
+
+}
+
+
+
+/**
+ * Signs a transaction to transfer Aion from one account to another. The returned transaction
+ * object can be used with sendSignedTransaction: See https://web3js.readthedocs.io/en/1.0/web3-eth.html#id72
+ * @param {Web3} web3 An aion-web3 1.0 instance which has been initialized, but doesn't need access to accounts.
+ * @param {string} privateKey The private key for the account to sign the transaction with
+ * @param {string} toAddress The Aion address to transfer value to
+ * @param {number} amount The number of mAmp to transfer from the privateKey address to toAddress
+ * @returns Promise which resolves to a signed transaction which can be used to submit to the network.
+ */
+
+const signTransaction = async (web3, privateKey, toAddress, amount) => {
+
+
+
+  // Get an unlocked account object which we can use to sign transactions
+
+  const unlockedAccount = web3.eth.accounts.privateKeyToAccount(privateKey);
+
+
+
+  // Define our transaction
+
+  const transactionParameters = {
+
+    to: toAddress,
+
+    value: amount,
+
+    gasPrice: '0x4A817C800', // 20000000000
+
+    gas: 2000000,
+
+    data: '', // Data would be added here to invoke a contract function
+
+  };
+
+
+
+  // Sign the transaction and wait for the result
+
+  console.log(`Signing transaction to send ${amount} to ${toAddress}`);
+
+  const signedTransaction = await unlockedAccount.signTransaction(transactionParameters);
+
+  return signedTransaction;
+
+}
+
+
+
+/**
+ * Submits a signed transaction to the Aion network. Returns a promise which resolves with
+ * a transaction receipt once the transaction has been confirmed on the network.
+ * @param {Web3} web3 An aion-web3 1.0 instance which has been initialized, but doesn't need access to accounts.
+ * @param {SignedTransaction} signedTransaction Signed transaction with a rawTransaction property.
+ * @returns Promise which resolves with a transaction receipt.
+ */
+
+const sendSignedTransaction = (web3, signedTransaction) => {
+
+
+
+  // Send the transaction and listen for the various events
+
+  // https://web3js.readthedocs.io/en/1.0/callbacks-promises-events.html#promievent
+
+  return web3.eth.sendSignedTransaction(signedTransaction.rawTransaction)
+
+    .once('transactionHash', (hash) => {
+
+      console.log(`Received transaction hash ${hash}`);
+
+      const explorerUrl = 'https://mastery.aion.network/#/transaction/' + hash;
+
+      console.log(`Check ${explorerUrl} once transaction is confirmed.`);
+
+    })
+
+    .on('error', (error) => {
+
+      console.error(`Error occurred sending transaction ${error}`);
+
+    })
+
+    .then((receipt) => {
+
+        // This will be fired once the receipt is mined
+
+        console.log(`Transaction sent successfully. Receipt: ${JSON.stringify(receipt)}`);
+
+        return receipt;
+
+    });
+
+}
+
+
+
+/**
+ * Transfers some Aion from one account to another using Nodesmith. Either an account private key or keystore
+ * file and password are required in order to sign the transaction.
+ * 
+ * @param {string} nodesmithEndpoint - The nodesmith endpoint to communicate with the Aion network
+ * @param {string} [accountPrivateKey] - Optional private key to send from
+ * @param {string} [keystoreFilePath] - Optional keystore file path to send from
+ * @param {string} [keystoreFilePassword] - Optional password for the keystore file
+ * @param {string} toAddress - The address of the Aion account to transfer to
+ * @param {(number|string)} amount - How many nAmp to transfer (https://github.com/aionnetwork/aion/wiki/Aion-Terminology)
+ * @returns Promise which will contain the transaction receipt if successful.
+ */
+
+const transferAion = async (
+
+  nodesmithEndpoint,
+
+  accountPrivateKey,
+
+  keystoreFilePath,
+
+  keystoreFilePassword,
+
+  toAddress,
+
+  amount) => {
+
+    const web3 = getWeb3Instance(nodesmithEndpoint);
+
+    const privateKey = getPrivateKey(accountPrivateKey, keystoreFilePath, keystoreFilePassword);
+
+    const signedTransaction = await signTransaction(web3, privateKey, toAddress, amount);
+
+    const transactionReceipt = await sendSignedTransaction(web3, signedTransaction);
+
+    return transactionReceipt;
+
+}
+
